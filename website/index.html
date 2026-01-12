@@ -1,341 +1,423 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Egg Incubator Control Panel</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <h1><i class="fas fa-egg"></i> Egg Incubator Control System</h1>
-            <div class="status-bar">
-                <div class="status-item" id="arduino-status">
-                    <span class="status-label">Arduino:</span>
-                    <span class="status-value disconnected">Disconnected</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Mode:</span>
-                    <span class="status-value" id="mode-status">AUTO</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Last Update:</span>
-                    <span class="status-value" id="last-update">--:--:--</span>
-                </div>
+      <!-- Header -->
+      <header class="header">
+        <h1><i class="fas fa-egg"></i> Egg Incubator Control System</h1>
+        <div class="status-bar">
+          <div class="status-item" id="arduino-status">
+            <span class="status-label">Arduino:</span>
+            <span class="status-value disconnected">Disconnected</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Mode:</span>
+            <span class="status-value" id="mode-status">AUTO</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Last Update:</span>
+            <span class="status-value" id="last-update">--:--:--</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Dashboard -->
+      <main class="dashboard">
+        <!-- Left Column: Sensors and Status -->
+        <div class="column left-column">
+          <!-- Temperature Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
             </div>
-        </header>
-
-        <!-- Main Dashboard -->
-        <main class="dashboard">
-            <!-- Left Column: Sensors and Status -->
-            <div class="column left-column">
-                <!-- Temperature Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-thermometer-half"></i> Temperature</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="sensor-display">
-                            <div class="sensor-value" id="temperature-value">--</div>
-                            <div class="sensor-unit">°C</div>
-                        </div>
-                        <div class="target-display">
-                            Target: <span id="target-temp">37.6</span>°C
-                        </div>
-                        <div class="control-group">
-                            <label>Set Target:</label>
-                            <input type="number" id="temp-setpoint" step="0.1" min="35" max="40" value="37.6">
-                            <button onclick="setTemperature()"><i class="fas fa-check"></i> Set</button>
-                        </div>
-                        <div class="status-indicator">
-                            <span class="status-label">Heater:</span>
-                            <span class="status-icon" id="heater-status">
-                                <i class="fas fa-power-off off"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Humidity Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-tint"></i> Humidity</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="sensor-display">
-                            <div class="sensor-value" id="humidity-value">--</div>
-                            <div class="sensor-unit">%</div>
-                        </div>
-                        <div class="target-display">
-                            Target: <span id="target-humidity">56</span>%
-                        </div>
-                        <div class="control-group">
-                            <label>Set Target:</label>
-                            <input type="number" id="humidity-setpoint" step="1" min="40" max="80" value="56">
-                            <button onclick="setHumidity()"><i class="fas fa-check"></i> Set</button>
-                        </div>
-                        <div class="status-indicator">
-                            <span class="status-label">Humidifier:</span>
-                            <span class="status-icon" id="humidifier-status">
-                                <i class="fas fa-power-off off"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Incubation Settings -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-calendar-alt"></i> Incubation Settings</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="control-group">
-                            <label>Day:</label>
-                            <input type="number" id="day-input" min="1" max="21" value="1">
-                            <button onclick="setDay()"><i class="fas fa-sync"></i> Update</button>
-                        </div>
-                        <div class="control-group">
-                            <label>Egg Count:</label>
-                            <input type="number" id="egg-count" min="1" max="100" value="30">
-                            <button onclick="setEggCount()"><i class="fas fa-check"></i> Set</button>
-                        </div>
-                        <div class="info-display">
-                            <p>Current Ventilation Interval: <span id="vent-interval">30 min</span></p>
-                            <p>Target RH by Day: <span id="rh-by-day">56% (Day 1-7)</span></p>
-                        </div>
-                    </div>
-                </div>
+            <div class="card-body">
+              <div class="sensor-display">
+                <div class="sensor-value" id="temperature-value">--</div>
+                <div class="sensor-unit">°C</div>
+              </div>
+              <div class="target-display">
+                Target: <span id="target-temp">37.6</span>°C
+              </div>
+              <div class="control-group">
+                <label>Set Target:</label>
+                <input
+                  type="number"
+                  id="temp-setpoint"
+                  step="0.1"
+                  min="35"
+                  max="40"
+                  value="37.6"
+                />
+                <button onclick="setTemperature()">
+                  <i class="fas fa-check"></i> Set
+                </button>
+              </div>
+              <div class="status-indicator">
+                <span class="status-label">Heater:</span>
+                <span class="status-icon" id="heater-status">
+                  <i class="fas fa-power-off off"></i>
+                </span>
+              </div>
             </div>
+          </div>
 
-            <!-- Middle Column: Main Controls -->
-            <div class="column middle-column">
-                <!-- Mode Control -->
-                <div class="card large">
-                    <div class="card-header">
-                        <h3><i class="fas fa-cogs"></i> System Mode</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="mode-selector">
-                            <button class="mode-btn active" id="auto-mode" onclick="setMode('AUTO')">
-                                <i class="fas fa-robot"></i>
-                                <span>AUTO Mode</span>
-                                <small>Automatic control based on sensors</small>
-                            </button>
-                            <button class="mode-btn" id="manual-mode" onclick="setMode('MANUAL')">
-                                <i class="fas fa-hand-paper"></i>
-                                <span>MANUAL Mode</span>
-                                <small>Full manual control</small>
-                            </button>
-                        </div>
-                        
-                        <div class="system-status">
-                            <h4>System Status</h4>
-                            <div class="status-grid">
-                                <div class="status-item">
-                                    <span class="status-label">Ventilation Fan:</span>
-                                    <div class="toggle-switch">
-                                        <input type="checkbox" id="vent-fan-switch" onchange="toggleVentilation()">
-                                        <label for="vent-fan-switch"></label>
-                                    </div>
-                                </div>
-                                <div class="status-item">
-                                    <span class="status-label">Heating System:</span>
-                                    <div class="toggle-switch">
-                                        <input type="checkbox" id="heat-switch" onchange="toggleHeating()">
-                                        <label for="heat-switch"></label>
-                                    </div>
-                                </div>
-                                <div class="status-item">
-                                    <span class="status-label">Humidity System:</span>
-                                    <div class="toggle-switch">
-                                        <input type="checkbox" id="humidity-switch" onchange="toggleHumiditySystem()">
-                                        <label for="humidity-switch"></label>
-                                    </div>
-                                </div>
-                                <div class="status-item">
-                                    <span class="status-label">Auto Flip:</span>
-                                    <div class="toggle-switch">
-                                        <input type="checkbox" id="flip-switch" onchange="toggleAutoFlip()">
-                                        <label for="flip-switch"></label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Water System -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-water"></i> Water System</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="status-indicator">
-                            <span class="status-label">Water Level:</span>
-                            <span class="status-value" id="water-level">OK</span>
-                        </div>
-                        <div class="status-indicator">
-                            <span class="status-label">Valve:</span>
-                            <span class="status-value" id="valve-status">CLOSED</span>
-                        </div>
-                        <div class="control-group">
-                            <button class="btn-action" onclick="controlWaterValve(true)">
-                                <i class="fas fa-faucet"></i> Open Valve
-                            </button>
-                            <button class="btn-action" onclick="controlWaterValve(false)">
-                                <i class="fas fa-faucet"></i> Close Valve
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Emergency Controls -->
-                <div class="card emergency">
-                    <div class="card-header">
-                        <h3><i class="fas fa-exclamation-triangle"></i> Emergency Controls</h3>
-                    </div>
-                    <div class="card-body">
-                        <button class="btn-emergency" onclick="emergencyStop()">
-                            <i class="fas fa-stop-circle"></i> EMERGENCY STOP
-                        </button>
-                        <button class="btn-reset" onclick="systemReset()">
-                            <i class="fas fa-redo"></i> System Reset
-                        </button>
-                    </div>
-                </div>
+          <!-- Humidity Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-tint"></i> Humidity</h3>
             </div>
-
-            <!-- Right Column: Flip and Door -->
-            <div class="column right-column">
-                <!-- Egg Flipping System -->
-                <div class="card large">
-                    <div class="card-header">
-                        <h3><i class="fas fa-sync-alt"></i> Egg Flipping System</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="flip-info">
-                            <div class="info-item">
-                                <span class="info-label">Status:</span>
-                                <span class="info-value" id="flip-status">IDLE</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Cycles:</span>
-                                <span class="info-value" id="cycle-count">0</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Next Flip In:</span>
-                                <span class="info-value" id="next-flip">--:--</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Session Time:</span>
-                                <span class="info-value" id="session-time">15 min</span>
-                            </div>
-                        </div>
-                        
-                        <div class="flip-controls">
-                            <button class="btn-action primary" onclick="startFlipSession()">
-                                <i class="fas fa-play"></i> Start Flip Session
-                            </button>
-                            <button class="btn-action" onclick="stopFlipSession()">
-                                <i class="fas fa-stop"></i> Stop Session
-                            </button>
-                        </div>
-                        
-                        <div class="flip-settings">
-                            <h4>Flip Settings</h4>
-                            <div class="control-group">
-                                <label>Interval (hours):</label>
-                                <input type="number" id="flip-interval" min="1" max="24" value="2">
-                                <button onclick="setFlipInterval()">Set</button>
-                            </div>
-                            <div class="control-group">
-                                <label>Duration (minutes):</label>
-                                <input type="number" id="flip-duration" min="1" max="60" value="15">
-                                <button onclick="setFlipDuration()">Set</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Door Alarm -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-door-closed"></i> Door Alarm</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="alarm-status">
-                            <div class="alarm-indicator" id="door-status">
-                                <div class="alarm-icon">
-                                    <i class="fas fa-door-closed"></i>
-                                </div>
-                                <div class="alarm-text">
-                                    <div class="alarm-state">CLOSED</div>
-                                    <div class="alarm-detail">No Alarm</div>
-                                </div>
-                            </div>
-                            <div class="status-indicator">
-                                <span class="status-label">Buzzer:</span>
-                                <span class="status-value" id="buzzer-status">OFF</span>
-                            </div>
-                        </div>
-                        <div class="alarm-controls">
-                            <button class="btn-action" onclick="testBuzzer()">
-                                <i class="fas fa-bell"></i> Test Buzzer
-                            </button>
-                            <button class="btn-action" onclick="silenceAlarm()">
-                                <i class="fas fa-volume-mute"></i> Silence Alarm
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Ventilation Status -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-wind"></i> Ventilation Status</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="vent-info">
-                            <div class="info-item">
-                                <span class="info-label">State:</span>
-                                <span class="info-value" id="vent-state">IDLE</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Next Vent In:</span>
-                                <span class="info-value" id="next-vent">--:--</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Last Reason:</span>
-                                <span class="info-value" id="vent-reason">TIME</span>
-                            </div>
-                        </div>
-                        <button class="btn-action" onclick="triggerVentilation()">
-                            <i class="fas fa-fan"></i> Trigger Ventilation Now
-                        </button>
-                    </div>
-                </div>
+            <div class="card-body">
+              <div class="sensor-display">
+                <div class="sensor-value" id="humidity-value">--</div>
+                <div class="sensor-unit">%</div>
+              </div>
+              <div class="target-display">
+                Target: <span id="target-humidity">56</span>%
+              </div>
+              <div class="control-group">
+                <label>Set Target:</label>
+                <input
+                  type="number"
+                  id="humidity-setpoint"
+                  step="1"
+                  min="40"
+                  max="80"
+                  value="56"
+                />
+                <button onclick="setHumidity()">
+                  <i class="fas fa-check"></i> Set
+                </button>
+              </div>
+              <div class="status-indicator">
+                <span class="status-label">Humidifier:</span>
+                <span class="status-icon" id="humidifier-status">
+                  <i class="fas fa-power-off off"></i>
+                </span>
+              </div>
             </div>
-        </main>
+          </div>
 
-        <!-- Footer with Logs -->
-        <footer class="footer">
-            <div class="log-header">
-                <h3><i class="fas fa-terminal"></i> System Logs</h3>
-                <button class="btn-clear" onclick="clearLogs()">Clear Logs</button>
+          <!-- Incubation Settings -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-calendar-alt"></i> Incubation Settings</h3>
             </div>
-            <div class="log-container" id="log-container">
-                <div class="log-entry">
-                    <span class="log-time">12:00:00</span>
-                    <span class="log-message">System initialized. Waiting for Arduino connection...</span>
+            <div class="card-body">
+              <div class="control-group">
+                <label>Day:</label>
+                <input
+                  type="number"
+                  id="day-input"
+                  min="1"
+                  max="21"
+                  value="1"
+                />
+                <button onclick="setDay()">
+                  <i class="fas fa-sync"></i> Update
+                </button>
+              </div>
+              <div class="control-group">
+                <label>Egg Count:</label>
+                <input
+                  type="number"
+                  id="egg-count"
+                  min="1"
+                  max="100"
+                  value="30"
+                />
+                <button onclick="setEggCount()">
+                  <i class="fas fa-check"></i> Set
+                </button>
+              </div>
+              <div class="info-display">
+                <p>
+                  Current Ventilation Interval:
+                  <span id="vent-interval">30 min</span>
+                </p>
+                <p>
+                  Target RH by Day: <span id="rh-by-day">56% (Day 1-7)</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle Column: Main Controls -->
+        <div class="column middle-column">
+          <!-- Mode Control -->
+          <div class="card large">
+            <div class="card-header">
+              <h3><i class="fas fa-cogs"></i> System Mode</h3>
+            </div>
+            <div class="card-body">
+              <div class="mode-selector">
+                <button
+                  class="mode-btn active"
+                  id="auto-mode"
+                  onclick="setMode('AUTO')"
+                >
+                  <i class="fas fa-robot"></i>
+                  <span>AUTO Mode</span>
+                  <small>Automatic control based on sensors</small>
+                </button>
+                <button
+                  class="mode-btn"
+                  id="manual-mode"
+                  onclick="setMode('MANUAL')"
+                >
+                  <i class="fas fa-hand-paper"></i>
+                  <span>MANUAL Mode</span>
+                  <small>Full manual control</small>
+                </button>
+              </div>
+
+              <div class="system-status">
+                <h4>System Status</h4>
+                <div class="status-grid">
+                  <div class="status-item">
+                    <span class="status-label">Ventilation Fan:</span>
+                    <div class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        id="vent-fan-switch"
+                        onchange="toggleVentilation()"
+                      />
+                      <label for="vent-fan-switch"></label>
+                    </div>
+                  </div>
+                  <div class="status-item">
+                    <span class="status-label">Heating System:</span>
+                    <div class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        id="heat-switch"
+                        onchange="toggleHeating()"
+                      />
+                      <label for="heat-switch"></label>
+                    </div>
+                  </div>
+                  <div class="status-item">
+                    <span class="status-label">Humidity System:</span>
+                    <div class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        id="humidity-switch"
+                        onchange="toggleHumiditySystem()"
+                      />
+                      <label for="humidity-switch"></label>
+                    </div>
+                  </div>
+                  <div class="status-item">
+                    <span class="status-label">Auto Flip:</span>
+                    <div class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        id="flip-switch"
+                        onchange="toggleAutoFlip()"
+                      />
+                      <label for="flip-switch"></label>
+                    </div>
+                  </div>
                 </div>
+              </div>
             </div>
-        </footer>
+          </div>
+
+          <!-- Water System -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-water"></i> Water System</h3>
+            </div>
+            <div class="card-body">
+              <div class="status-indicator">
+                <span class="status-label">Water Level:</span>
+                <span class="status-value" id="water-level">OK</span>
+              </div>
+              <div class="status-indicator">
+                <span class="status-label">Valve:</span>
+                <span class="status-value" id="valve-status">CLOSED</span>
+              </div>
+              <div class="control-group">
+                <button class="btn-action" onclick="controlWaterValve(true)">
+                  <i class="fas fa-faucet"></i> Open Valve
+                </button>
+                <button class="btn-action" onclick="controlWaterValve(false)">
+                  <i class="fas fa-faucet"></i> Close Valve
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Emergency Controls -->
+          <div class="card emergency">
+            <div class="card-header">
+              <h3>
+                <i class="fas fa-exclamation-triangle"></i> Emergency Controls
+              </h3>
+            </div>
+            <div class="card-body">
+              <button class="btn-emergency" onclick="emergencyStop()">
+                <i class="fas fa-stop-circle"></i> EMERGENCY STOP
+              </button>
+              <button class="btn-reset" onclick="systemReset()">
+                <i class="fas fa-redo"></i> System Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Flip and Door -->
+        <div class="column right-column">
+          <!-- Egg Flipping System -->
+          <div class="card large">
+            <div class="card-header">
+              <h3><i class="fas fa-sync-alt"></i> Egg Flipping System</h3>
+            </div>
+            <div class="card-body">
+              <div class="flip-info">
+                <div class="info-item">
+                  <span class="info-label">Status:</span>
+                  <span class="info-value" id="flip-status">IDLE</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Cycles:</span>
+                  <span class="info-value" id="cycle-count">0</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Next Flip In:</span>
+                  <span class="info-value" id="next-flip">--:--</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Session Time:</span>
+                  <span class="info-value" id="session-time">15 min</span>
+                </div>
+              </div>
+
+              <div class="flip-controls">
+                <button class="btn-action primary" onclick="startFlipSession()">
+                  <i class="fas fa-play"></i> Start Flip Session
+                </button>
+                <button class="btn-action" onclick="stopFlipSession()">
+                  <i class="fas fa-stop"></i> Stop Session
+                </button>
+              </div>
+
+              <div class="flip-settings">
+                <h4>Flip Settings</h4>
+                <div class="control-group">
+                  <label>Interval (hours):</label>
+                  <input
+                    type="number"
+                    id="flip-interval"
+                    min="1"
+                    max="24"
+                    value="2"
+                  />
+                  <button onclick="setFlipInterval()">Set</button>
+                </div>
+                <div class="control-group">
+                  <label>Duration (minutes):</label>
+                  <input
+                    type="number"
+                    id="flip-duration"
+                    min="1"
+                    max="60"
+                    value="15"
+                  />
+                  <button onclick="setFlipDuration()">Set</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Door Alarm -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-door-closed"></i> Door Alarm</h3>
+            </div>
+            <div class="card-body">
+              <div class="alarm-status">
+                <div class="alarm-indicator" id="door-status">
+                  <div class="alarm-icon">
+                    <i class="fas fa-door-closed"></i>
+                  </div>
+                  <div class="alarm-text">
+                    <div class="alarm-state">CLOSED</div>
+                    <div class="alarm-detail">No Alarm</div>
+                  </div>
+                </div>
+                <div class="status-indicator">
+                  <span class="status-label">Buzzer:</span>
+                  <span class="status-value" id="buzzer-status">OFF</span>
+                </div>
+              </div>
+              <div class="alarm-controls">
+                <button class="btn-action" onclick="testBuzzer()">
+                  <i class="fas fa-bell"></i> Test Buzzer
+                </button>
+                <button class="btn-action" onclick="silenceAlarm()">
+                  <i class="fas fa-volume-mute"></i> Silence Alarm
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ventilation Status -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fas fa-wind"></i> Ventilation Status</h3>
+            </div>
+            <div class="card-body">
+              <div class="vent-info">
+                <div class="info-item">
+                  <span class="info-label">State:</span>
+                  <span class="info-value" id="vent-state">IDLE</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Next Vent In:</span>
+                  <span class="info-value" id="next-vent">--:--</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Last Reason:</span>
+                  <span class="info-value" id="vent-reason">TIME</span>
+                </div>
+              </div>
+              <button class="btn-action" onclick="triggerVentilationNow()">
+                <i class="fas fa-fan"></i> Trigger Ventilation Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Footer with Logs -->
+      <footer class="footer">
+        <div class="log-header">
+          <h3><i class="fas fa-terminal"></i> System Logs</h3>
+          <button class="btn-clear" onclick="clearLogs()">Clear Logs</button>
+        </div>
+        <div class="log-container" id="log-container">
+          <div class="log-entry">
+            <span class="log-time">12:00:00</span>
+            <span class="log-message"
+              >System initialized. Waiting for Arduino connection...</span
+            >
+          </div>
+        </div>
+      </footer>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
-</body>
+  </body>
 </html>

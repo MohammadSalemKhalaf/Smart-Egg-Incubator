@@ -1,64 +1,149 @@
-// ===================== WebSocket =====================
+// WebSocket connection
 let socket;
 let isConnected = false;
 let lastTelemetry = null;
 
-// Mode state
-let currentMode = "AUTO"; // default UI state
+// ====== MODE STATE ======
+let currentMode = "AUTO"; // default (matches UI initial)
 
-// ===================== DOM =====================
+// DOM Elements
 const elements = {
   arduinoStatus: document.getElementById("arduino-status"),
   modeStatus: document.getElementById("mode-status"),
   lastUpdate: document.getElementById("last-update"),
-
   temperature: document.getElementById("temperature-value"),
   targetTemp: document.getElementById("target-temp"),
-
   humidity: document.getElementById("humidity-value"),
   targetHumidity: document.getElementById("target-humidity"),
-
+  heaterStatus: document.getElementById("heater-status"),
+  humidifierStatus: document.getElementById("humidifier-status"),
+  ventState: document.getElementById("vent-state"),
+  nextVent: document.getElementById("next-vent"),
+  ventReason: document.getElementById("vent-reason"),
+  flipStatus: document.getElementById("flip-status"),
+  cycleCount: document.getElementById("cycle-count"),
+  nextFlip: document.getElementById("next-flip"),
+  waterLevel: document.getElementById("water-level"),
+  valveStatus: document.getElementById("valve-status"),
+  doorStatus: document.getElementById("door-status"),
+  buzzerStatus: document.getElementById("buzzer-status"),
   logContainer: document.getElementById("log-container"),
 };
 
-// ===================== Helpers =====================
-function addLog(message) {
-  const logContainer = elements.logContainer;
-  if (!logContainer) return;
+// ============ Helpers ============
 
-  const logEntry = document.createElement("div");
-  logEntry.className = "log-entry";
+// Allowed always (even in AUTO)
+const ALWAYS_ALLOWED_TYPES = new Set(["mode", "emergency_stop", "reset"]);
 
-  const time = new Date().toLocaleTimeString();
-  logEntry.innerHTML = `
-    <span class="log-time">${time}</span>
-    <span class="log-message">${message}</span>
-  `;
-  logContainer.appendChild(logEntry);
-  logContainer.scrollTop = logContainer.scrollHeight;
+// Check if command is allowed in current mode
+function canSendCommand(type) {
+  if (!type) return false;
+  if (ALWAYS_ALLOWED_TYPES.has(type)) return true;
+  return currentMode === "MANUAL";
 }
 
-function showToast(message, type = "info") {
-  document.querySelectorAll(".toast").forEach((toast) => toast.remove());
+// Unified emitter with AUTO freeze behavior
+function emitControl(type, value) {
+  if (!socket) {
+    showToast("Socket not ready", "error");
+    return false;
+  }
 
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
+  // If AUTO: block everything except allowed types
+  if (!canSendCommand(type)) {
+    showToast(
+      "AUTO mode: controls are disabled (Safety buttons still work)",
+      "warning"
+    );
+    addLog(`BLOCKED in AUTO: ${type}`);
+    return false;
+  }
 
-  document.body.appendChild(toast);
-
-  setTimeout(() => toast.classList.add("show"), 10);
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 300);
-  }, 2500);
+  // Send
+  socket.emit("control-command", { type, value });
+  return true;
 }
 
-// ===================== UI: Arduino status =====================
+// Freeze/Unfreeze UI controls (visual + prevent clicks on inputs/buttons)
+// Keep: mode buttons + safety buttons (they are handled by ALWAYS_ALLOWED_TYPES anyway)
+function applyUiFreeze() {
+  const isAuto = currentMode === "AUTO";
+
+  // Disable all inputs & buttons EXCEPT mode buttons.
+  // Safety buttons don't have IDs, but even if disabled visually,
+  // JS still allows them through. We will NOT disable them by selector,
+  // so they remain clickable.
+  const modeBtns = new Set(["auto-mode", "manual-mode"]);
+
+  // Disable all INPUTS except nothing (we freeze them in AUTO)
+  document.querySelectorAll("input, select, textarea").forEach((el) => {
+    // allow none in AUTO (freeze config too as you requested)
+    el.disabled = isAuto;
+  });
+
+  // Disable all BUTTONS except mode buttons + emergency/reset (by class)
+  document.querySelectorAll("button").forEach((btn) => {
+    const id = btn.id || "";
+    const isModeBtn = modeBtns.has(id);
+
+    // Keep safety buttons always enabled
+    const isSafetyBtn =
+      btn.classList.contains("btn-emergency") ||
+      btn.classList.contains("btn-reset");
+
+    btn.disabled = isAuto ? !(isModeBtn || isSafetyBtn) : false;
+  });
+
+  // Optional small hint in logs
+  if (isAuto) {
+    addLog("AUTO mode: UI controls frozen (Safety buttons still enabled).");
+  } else {
+    addLog("MANUAL mode: UI controls enabled.");
+  }
+}
+
+// Initialize WebSocket connection
+function initWebSocket() {
+  socket = io("http://localhost:3000", {
+    transports: ["websocket", "polling"],
+  });
+
+  socket.on("connect_error", (err) => {
+    console.log("SOCKET connect_error:", err.message);
+    addLog("SOCKET ERROR: " + err.message);
+  });
+
+  socket.on("connect", () => {
+    addLog("Connected to server");
+    isConnected = true;
+  });
+
+  socket.on("disconnect", () => {
+    addLog("Disconnected from server");
+    isConnected = false;
+    updateArduinoStatus(false);
+  });
+
+  socket.on("arduino-status", (data) => {
+    updateArduinoStatus(data.connected);
+  });
+
+  socket.on("telemetry", (data) => {
+    updateTelemetry(data);
+  });
+
+  socket.on("command-status", (data) => {
+    if (data.success) {
+      showToast(`Command sent: ${data.command}`, "success");
+    } else {
+      showToast(`Failed: ${data.command} - ${data.error}`, "error");
+    }
+  });
+}
+
+// Update Arduino connection status
 function updateArduinoStatus(connected) {
-  const statusElement = elements.arduinoStatus?.querySelector(".status-value");
-  if (!statusElement) return;
-
+  const statusElement = elements.arduinoStatus.querySelector(".status-value");
   if (connected) {
     statusElement.textContent = "Connected";
     statusElement.className = "status-value connected";
@@ -68,287 +153,289 @@ function updateArduinoStatus(connected) {
   }
 }
 
-// ===================== UI: telemetry =====================
-function updateTemperatureColor(temp) {
-  const targetTemp = parseFloat(elements.targetTemp?.textContent || "37.6");
-  const diff = temp - targetTemp;
-
-  if (Math.abs(diff) <= 0.3) elements.temperature.style.color = "#28a745";
-  else if (diff > 0) elements.temperature.style.color = "#dc3545";
-  else elements.temperature.style.color = "#007bff";
-}
-
+// Update telemetry data
 function updateTelemetry(data) {
-  if (data?.temperature !== null && data?.temperature !== undefined) {
-    elements.temperature.textContent = Number(data.temperature).toFixed(1);
-    updateTemperatureColor(Number(data.temperature));
-  } else {
-    elements.temperature.textContent = "--";
+  if (data.temperature !== null) {
+    elements.temperature.textContent = data.temperature.toFixed(1);
+    updateTemperatureColor(data.temperature);
   }
 
-  if (data?.humidity !== null && data?.humidity !== undefined) {
-    elements.humidity.textContent = Number(data.humidity).toFixed(0);
-  } else {
-    elements.humidity.textContent = "--";
+  if (data.humidity !== null) {
+    elements.humidity.textContent = data.humidity.toFixed(0);
   }
 
   elements.lastUpdate.textContent = new Date().toLocaleTimeString();
   lastTelemetry = data;
 }
 
-// ===================== Freeze controls in AUTO =====================
-// IMPORTANT: keep emergency + reset + mode buttons enabled in both modes
-function setControlsEnabled(enabled) {
-  const controls = document.querySelectorAll("button, input, select, textarea");
+// Update temperature color based on value
+function updateTemperatureColor(temp) {
+  const tempValue = parseFloat(temp);
+  const targetTemp = parseFloat(elements.targetTemp.textContent);
+  const diff = tempValue - targetTemp;
 
-  controls.forEach((el) => {
-    el.disabled = !enabled;
-  });
-
-  // Always enabled buttons (work in AUTO and MANUAL)
-  const alwaysEnabledIds = [
-    "auto-mode",
-    "manual-mode",
-    "emergency-stop",
-    "system-reset",
-  ];
-
-  alwaysEnabledIds.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = false;
-  });
-
-  // If your emergency/reset buttons are not using these IDs,
-  // you can add their real IDs here.
+  if (Math.abs(diff) <= 0.3) {
+    elements.temperature.style.color = "#28a745"; // Green
+  } else if (diff > 0) {
+    elements.temperature.style.color = "#dc3545"; // Red (too hot)
+  } else {
+    elements.temperature.style.color = "#007bff"; // Blue (too cold)
+  }
 }
 
-// ===================== Mode handling =====================
-function applyModeUI(mode) {
-  currentMode = mode;
-
-  const autoBtn = document.getElementById("auto-mode");
-  const manualBtn = document.getElementById("manual-mode");
-
-  if (autoBtn) autoBtn.classList.toggle("active", mode === "AUTO");
-  if (manualBtn) manualBtn.classList.toggle("active", mode === "MANUAL");
-
-  if (elements.modeStatus) elements.modeStatus.textContent = mode;
-
-  // AUTO => freeze everything except emergency/reset/mode
-  setControlsEnabled(mode === "MANUAL");
-}
-
-// ===================== Socket init =====================
-function initWebSocket() {
-  socket = io(window.location.origin, {
-    transports: ["websocket", "polling"],
-  });
-
-  socket.on("connect", () => {
-    isConnected = true;
-    addLog("Connected to server");
-  });
-
-  socket.on("disconnect", () => {
-    isConnected = false;
-    addLog("Disconnected from server");
-    updateArduinoStatus(false);
-  });
-
-  socket.on("arduino-status", (data) => {
-    updateArduinoStatus(!!data.connected);
-  });
-
-  socket.on("telemetry", (data) => {
-    updateTelemetry(data);
-  });
-
-  socket.on("command-status", (data) => {
-    if (data.success) showToast(`Command sent: ${data.command}`, "success");
-    else showToast(`Failed: ${data.command} - ${data.error}`, "error");
-  });
-
-  socket.on("connect_error", (err) => {
-    addLog("SOCKET ERROR: " + err.message);
-  });
-}
-
-// ===================== Commands =====================
-function sendControl(type, value) {
+// Control Functions
+function setMode(mode) {
   if (!isConnected) {
-    showToast("Not connected to server", "error");
+    showToast("Not connected to Arduino", "error");
     return;
   }
-  socket.emit("control-command", { type, value });
+
+  // Update state
+  currentMode = mode;
+
+  // Update UI
+  document
+    .getElementById("auto-mode")
+    .classList.toggle("active", mode === "AUTO");
+  document
+    .getElementById("manual-mode")
+    .classList.toggle("active", mode === "MANUAL");
+  elements.modeStatus.textContent = mode;
+
+  // Freeze UI controls based on mode
+  applyUiFreeze();
+
+  // Send command (always allowed)
+  emitControl("mode", mode);
+
+  addLog(`Mode changed to ${mode}`);
 }
 
-// ===================== GLOBAL FUNCTIONS (for onclick) =====================
+function setTemperature() {
+  const temp = document.getElementById("temp-setpoint").value;
+  elements.targetTemp.textContent = temp;
 
-// Mode
-window.setMode = function setMode(mode) {
-  applyModeUI(mode);
-  sendControl("mode", mode);
-  addLog(`Mode changed to ${mode}`);
-};
+  if (emitControl("temperature", parseFloat(temp))) {
+    addLog(`Target temperature set to ${temp}°C`);
+  }
+}
 
-// Temperature/Humidity targets
-window.setTemperature = function setTemperature() {
-  const temp = document.getElementById("temp-setpoint")?.value;
-  if (!temp) return;
-  if (elements.targetTemp) elements.targetTemp.textContent = temp;
+function setHumidity() {
+  const hum = document.getElementById("humidity-setpoint").value;
+  elements.targetHumidity.textContent = hum;
 
-  sendControl("temperature", parseFloat(temp));
-  addLog(`Target temperature set to ${temp}°C`);
-};
+  if (emitControl("humidity", parseInt(hum))) {
+    addLog(`Target humidity set to ${hum}%`);
+  }
+}
 
-window.setHumidity = function setHumidity() {
-  const hum = document.getElementById("humidity-setpoint")?.value;
-  if (!hum) return;
-  if (elements.targetHumidity) elements.targetHumidity.textContent = hum;
+function setDay() {
+  const day = document.getElementById("day-input").value;
 
-  sendControl("humidity", parseInt(hum));
-  addLog(`Target humidity set to ${hum}%`);
-};
+  if (emitControl("day", parseInt(day))) {
+    addLog(`Incubation day set to ${day}`);
+  }
 
-window.setDay = function setDay() {
-  const day = document.getElementById("day-input")?.value;
-  if (!day) return;
-
-  sendControl("day", parseInt(day));
-  addLog(`Incubation day set to ${day}`);
-
-  // update UI target humidity based on day
-  const d = parseInt(day);
+  // Update RH based on day (UI only)
   let targetRH;
-  if (d <= 7) targetRH = 56;
-  else if (d <= 18) targetRH = 60;
+  if (day <= 7) targetRH = 56;
+  else if (day <= 18) targetRH = 60;
   else targetRH = 65;
-  if (elements.targetHumidity) elements.targetHumidity.textContent = targetRH;
-};
 
-window.setEggCount = function setEggCount() {
-  const eggs = document.getElementById("egg-count")?.value;
-  if (!eggs) return;
+  elements.targetHumidity.textContent = targetRH;
+}
 
-  sendControl("egg_count", parseInt(eggs));
-  addLog(`Egg count set to ${eggs}`);
-};
+function setEggCount() {
+  const eggs = document.getElementById("egg-count").value;
 
-// Toggles
-window.toggleVentilation = function toggleVentilation() {
-  const enabled = document.getElementById("vent-fan-switch")?.checked;
-  sendControl("ventilation", !!enabled);
-  addLog(`Ventilation fan ${enabled ? "enabled" : "disabled"}`);
-};
+  if (emitControl("egg_count", parseInt(eggs))) {
+    addLog(`Egg count set to ${eggs}`);
+  }
+}
 
-window.toggleHeating = function toggleHeating() {
-  const enabled = document.getElementById("heat-switch")?.checked;
-  sendControl("heating", !!enabled);
-  addLog(`Heating system ${enabled ? "enabled" : "disabled"}`);
-};
+function toggleVentilation() {
+  const enabled = document.getElementById("vent-fan-switch").checked;
 
-window.toggleHumiditySystem = function toggleHumiditySystem() {
-  const enabled = document.getElementById("humidity-switch")?.checked;
-  sendControl("humidity_system", !!enabled);
-  addLog(`Humidity system ${enabled ? "enabled" : "disabled"}`);
-};
+  if (emitControl("ventilation", enabled)) {
+    addLog(`Ventilation fan ${enabled ? "enabled" : "disabled"}`);
+  } else {
+    // revert UI toggle if blocked
+    document.getElementById("vent-fan-switch").checked = !enabled;
+  }
+}
 
-window.toggleAutoFlip = function toggleAutoFlip() {
-  const enabled = document.getElementById("flip-switch")?.checked;
-  sendControl("flip", !!enabled);
-  addLog(`Auto flip ${enabled ? "enabled" : "disabled"}`);
-};
+function toggleHeating() {
+  const enabled = document.getElementById("heat-switch").checked;
 
-// Flip actions
-window.startFlipSession = function startFlipSession() {
-  sendControl("start_flip_session", true);
-  addLog("Flip session START requested");
-};
+  if (emitControl("heating", enabled)) {
+    addLog(`Heating system ${enabled ? "enabled" : "disabled"}`);
+  } else {
+    document.getElementById("heat-switch").checked = !enabled;
+  }
+}
 
-window.stopFlipSession = function stopFlipSession() {
-  sendControl("stop_flip_session", true);
-  addLog("Flip session STOP requested");
-};
+function toggleHumiditySystem() {
+  const enabled = document.getElementById("humidity-switch").checked;
 
-// Flip settings
-window.setFlipInterval = function setFlipInterval() {
-  // IMPORTANT: make sure your input id is flip-interval
-  const v = document.getElementById("flip-interval")?.value;
-  if (!v) return;
+  if (emitControl("humidity_system", enabled)) {
+    addLog(`Humidity system ${enabled ? "enabled" : "disabled"}`);
+  } else {
+    document.getElementById("humidity-switch").checked = !enabled;
+  }
+}
 
-  const hours = parseFloat(v);
-  sendControl("flip_interval_hours", hours);
-  addLog(`Flip interval set to ${hours} hours`);
-};
+function toggleAutoFlip() {
+  const enabled = document.getElementById("flip-switch").checked;
 
-window.setFlipDuration = function setFlipDuration() {
-  // IMPORTANT: make sure your input id is flip-duration
-  const v = document.getElementById("flip-duration")?.value;
-  if (!v) return;
+  if (emitControl("flip", enabled)) {
+    addLog(`Auto flip ${enabled ? "enabled" : "disabled"}`);
+  } else {
+    document.getElementById("flip-switch").checked = !enabled;
+  }
+}
 
-  const mins = parseFloat(v);
-  sendControl("flip_duration_minutes", mins);
-  addLog(`Flip duration set to ${mins} minutes`);
-};
+function startFlipSession() {
+  if (emitControl("start_flip_session")) {
+    addLog("Flip session started");
+  }
+}
 
-// Vent manual trigger
-window.triggerVentilationNow = function triggerVentilationNow() {
-  sendControl("trigger_vent_now", true);
-  addLog("Ventilation TRIGGER NOW requested");
-};
+function stopFlipSession() {
+  // Your server maps "flip false" to stop
+  if (emitControl("flip", false)) {
+    addLog("Flip session stopped");
+  }
+}
 
-// Water / buzzer
-window.controlWaterValve = function controlWaterValve(open) {
-  sendControl("water_valve", !!open);
-  addLog(`Water valve ${open ? "opened" : "closed"}`);
-};
+function setFlipInterval() {
+  const interval = document.getElementById("flip-interval").value;
+  addLog(`Flip interval set to ${interval} hours`);
+  // (Optional) add a new command type later
+}
 
-window.testBuzzer = function testBuzzer() {
-  sendControl("buzzer_test", true);
-  setTimeout(() => sendControl("buzzer_test", false), 1000);
+function setFlipDuration() {
+  const duration = document.getElementById("flip-duration").value;
+  addLog(`Flip duration set to ${duration} minutes`);
+  // (Optional) add a new command type later
+}
+
+function controlWaterValve(open) {
+  if (emitControl("water_valve", open)) {
+    addLog(`Water valve ${open ? "opened" : "closed"}`);
+  }
+}
+
+function triggerVentilation() {
+  // Manual override: ON 5s then OFF
+  if (!emitControl("ventilation", true)) return;
+
+  setTimeout(() => {
+    emitControl("ventilation", false);
+  }, 5000);
+
+  addLog("Manual ventilation triggered");
+}
+
+function testBuzzer() {
+  if (!emitControl("buzzer_test", true)) return;
+
+  setTimeout(() => {
+    emitControl("buzzer_test", false);
+  }, 1000);
+
   addLog("Buzzer test");
-};
+}
 
-window.silenceAlarm = function silenceAlarm() {
-  sendControl("silence_alarm", true);
-  addLog("Alarm silenced");
-};
+function silenceAlarm() {
+  if (emitControl("silence_alarm")) {
+    addLog("Alarm silenced");
+  }
+}
 
-// Emergency + Reset (ALWAYS enabled in both modes)
-window.emergencyStop = function emergencyStop() {
+function emergencyStop() {
+  // ALWAYS allowed even in AUTO
   if (confirm("⚠️ ARE YOU SURE?\nThis will stop ALL systems immediately!")) {
-    sendControl("emergency_stop", true);
+    emitControl("emergency_stop");
 
-    // reset toggles UI (optional)
-    document
-      .querySelectorAll(".toggle-switch input")
-      .forEach((el) => (el.checked = false));
+    // Reset all switches (UI)
+    document.querySelectorAll(".toggle-switch input").forEach((switchEl) => {
+      switchEl.checked = false;
+    });
 
     addLog("!!! EMERGENCY STOP ACTIVATED !!!");
     showToast("EMERGENCY STOP ACTIVATED", "error");
   }
-};
+}
 
-window.systemReset = function systemReset() {
-  if (confirm("Reset all systems to default safe state?")) {
-    sendControl("reset", true);
+function systemReset() {
+  // ALWAYS allowed even in AUTO
+  if (confirm("Reset all systems to default state?")) {
+    emitControl("reset");
     addLog("System reset initiated");
     showToast("System reset", "warning");
   }
-};
+}
 
-// Logs
-window.clearLogs = function clearLogs() {
-  if (elements.logContainer) elements.logContainer.innerHTML = "";
+// Utility Functions
+function addLog(message) {
+  const logContainer = elements.logContainer;
+  const logEntry = document.createElement("div");
+  logEntry.className = "log-entry";
+
+  const time = new Date().toLocaleTimeString();
+  logEntry.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-message">${message}</span>
+    `;
+
+  logContainer.appendChild(logEntry);
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+function clearLogs() {
+  elements.logContainer.innerHTML = "";
   addLog("Logs cleared");
-};
+}
 
-// ===================== Start =====================
+function showToast(message, type = "info") {
+  // Remove existing toasts
+  document.querySelectorAll(".toast").forEach((toast) => toast.remove());
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+
+  document.body.appendChild(toast);
+
+  // Show toast
+  setTimeout(() => toast.classList.add("show"), 10);
+
+  // Hide after 3 seconds
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
   initWebSocket();
-
-  // Default AUTO mode => freeze controls except emergency/reset/mode
-  applyModeUI("AUTO");
-
   addLog("Web interface initialized");
+
+  // Set initial mode based on UI active button
+  const autoBtn = document.getElementById("auto-mode");
+  const manualBtn = document.getElementById("manual-mode");
+  if (manualBtn && manualBtn.classList.contains("active"))
+    currentMode = "MANUAL";
+  else currentMode = "AUTO";
+
+  elements.modeStatus.textContent = currentMode;
+  applyUiFreeze();
+
+  // Update time every second
+  setInterval(() => {
+    if (lastTelemetry) {
+      updateTelemetry(lastTelemetry);
+    }
+  }, 1000);
 });
